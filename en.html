@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr" data-default="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>FleetOo – technician commuting costs outside the main cities</title>
+<link rel="stylesheet" href="lib/leaflet/leaflet.css">
+<style>
+  :root {
+    --bg: #f7f6f2; --panel: #ffffff; --fg: #1f1e1c; --muted: #6b6862; --line: #e4e1d9; --accent: #c2410c;
+    --zero: #9a968d; --main: #1f3b63; --good: #1e7d4f;
+    --font: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #1a1918; --panel: #232220; --fg: #ecebe8; --muted: #a29e96; --line: #38352f; --accent: #f97316; --zero: #77736b; --main: #8db4ea; }
+  }
+  html[lang=ar] { --font: 'Segoe UI', Tahoma, 'Noto Sans Arabic', 'Geeza Pro', system-ui, sans-serif; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--fg); font-family: var(--font); font-size: 14px; line-height: 1.45; display: flex; flex-direction: column; }
+  header { padding: 16px 20px 12px; display: flex; flex-wrap: wrap; gap: 12px 20px; align-items: flex-end; justify-content: space-between; border-bottom: 1px solid var(--line); background: var(--panel); }
+  h1 { font-size: clamp(17px, 2.4vw, 22px); margin: 0 0 2px; font-weight: 650; }
+  .sub { color: var(--muted); font-size: 12.5px; margin: 0; }
+  .controls { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; font-size: 13px; }
+  .controls select, .controls button { font: inherit; font-size: 13px; padding: 5px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); color: var(--fg); cursor: pointer; }
+  .controls label { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; color: var(--muted); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; padding: 12px 20px; }
+  .stat { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat .l { font-size: 12px; color: var(--muted); }
+  .stat .v { font-size: 22px; font-weight: 650; font-variant-numeric: tabular-nums; }
+  main { flex: 1; display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 520px; gap: 0; border-top: 1px solid var(--line); }
+  #map { height: 100%; min-height: 520px; background: #dfe7ec; }
+  aside { background: var(--panel); border-inline-start: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+  aside h2 { font-size: 14px; margin: 0; padding: 12px 14px 8px; }
+  #list { overflow-y: auto; flex: 1; padding: 0 6px 10px; }
+  .row { display: grid; grid-template-columns: 1fr auto; gap: 2px 10px; padding: 8px; border-radius: 8px; cursor: pointer; }
+  .row:hover, .row:focus { background: color-mix(in srgb, var(--accent) 9%, transparent); outline: none; }
+  .row .n { font-weight: 600; }
+  .row .f { font-weight: 650; font-variant-numeric: tabular-nums; text-align: end; }
+  .row .m { grid-column: 1 / -1; color: var(--muted); font-size: 12px; }
+  .row .bar { grid-column: 1 / -1; height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+  .row .bar i { display: block; height: 100%; background: var(--accent); }
+  .new { font-style: normal; font-size: 11px; font-weight: 600; color: #fff; background: var(--accent); border-radius: 999px; padding: 1px 7px; margin-inline-start: 6px; vertical-align: 1px; }
+  .row.zero .f { color: var(--zero); font-weight: 500; }
+  .legend-box { padding: 10px 14px 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); display: grid; gap: 6px; }
+  .legend-box span { display: inline-flex; align-items: center; gap: 8px; }
+  .dot { display: inline-block; border-radius: 50%; background: var(--accent); opacity: .85; }
+  .dot.z { background: transparent; border: 2px solid var(--zero); }
+  .sq { width: 10px; height: 10px; background: var(--main); display: inline-block; border-radius: 2px; }
+  .dash { width: 22px; border-top: 2px dashed var(--accent); display: inline-block; }
+  footer { padding: 14px 20px 24px; font-size: 12.5px; color: var(--muted); }
+  footer details summary { cursor: pointer; color: var(--fg); font-weight: 600; }
+  footer ul { padding-inline-start: 20px; line-height: 1.7; }
+  footer a { color: var(--accent); }
+  /* Leaflet popups & labels */
+  .leaflet-popup-content { margin: 12px 14px; font-family: var(--font); font-size: 13px; min-width: 240px; }
+  .pp h3 { margin: 0 0 2px; font-size: 15px; }
+  .pp .r { color: #6b6862; font-size: 12px; margin-bottom: 8px; }
+  .pp .kv { display: grid; grid-template-columns: auto auto; gap: 2px 14px; margin-bottom: 8px; font-variant-numeric: tabular-nums; }
+  .pp .kv b { text-align: end; }
+  .pp table { border-collapse: collapse; width: 100%; font-size: 12px; font-variant-numeric: tabular-nums; }
+  .pp th, .pp td { padding: 3px 4px; border-bottom: 1px solid #eee; text-align: start; white-space: nowrap; }
+  .pp td.num, .pp th.num { text-align: end; }
+  .pp .note { font-size: 11.5px; color: #8a5a00; margin-top: 6px; white-space: normal; }
+  .pp .vis { max-height: 180px; overflow-y: auto; }
+  .city-label { background: transparent; border: none; box-shadow: none; font-family: var(--font); font-size: 11.5px; font-weight: 600; color: #1f3b63; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; padding: 0; }
+  .city-label::before { display: none; }
+  #map:not(.zoomed) .city-label.minor { display: none; }
+  .fee-label { background: transparent; border: none; box-shadow: none; font-family: var(--font); font-size: 11px; font-weight: 650; color: #7c2d12; text-shadow: 0 0 3px #fff, 0 0 3px #fff, 0 0 3px #fff; padding: 0; }
+  .fee-label::before { display: none; }
+  @media (max-width: 820px) {
+    html, body { height: auto; }
+    body { display: block; }
+    main { display: block; }
+    #map { height: 62vh; min-height: 380px; }
+    aside { border-inline-start: none; border-top: 1px solid var(--line); }
+    #list { max-height: 420px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 data-t="title"></h1>
+    <p class="sub" data-t="subtitle"></p>
+  </div>
+  <div class="controls">
+    <select id="period" aria-label="Period"></select>
+    <label><input type="checkbox" id="showZero" checked> <span data-t="showZero"></span></label>
+    <label><input type="checkbox" id="showLines" checked> <span data-t="showLines"></span></label>
+    <button id="lang" type="button"></button>
+  </div>
+</header>
+
+<section class="stats">
+  <div class="stat"><div class="l" data-t="s_cost"></div><div class="v" id="s-cost"></div></div>
+  <div class="stat"><div class="l" data-t="s_trips"></div><div class="v" id="s-trips"></div></div>
+  <div class="stat"><div class="l" data-t="s_places"></div><div class="v" id="s-places"></div></div>
+  <div class="stat"><div class="l" data-t="s_units"></div><div class="v" id="s-units"></div></div>
+  <div class="stat"><div class="l" data-t="s_per"></div><div class="v" id="s-per"></div></div>
+</section>
+
+<main>
+  <div id="map" dir="ltr" role="region" aria-label="Map"></div>
+  <aside>
+    <h2 data-t="listTitle"></h2>
+    <p class="sub" style="padding:0 14px 8px" data-t="hint"></p>
+    <div id="list"></div>
+    <div class="legend-box">
+      <span><i class="dot" style="width:16px;height:16px"></i><span data-t="lg_cost"></span></span>
+      <span><i class="dot z" style="width:10px;height:10px"></i><span data-t="lg_zero"></span></span>
+      <span><i class="sq"></i><span data-t="lg_main"></span></span>
+      <span><i class="dash"></i><span data-t="lg_line"></span></span>
+    </div>
+  </aside>
+</main>
+
+<footer>
+  <details>
+    <summary data-t="method"></summary>
+    <ul id="notes"></ul>
+  </details>
+  <p data-t="downloads"></p>
+</footer>
+
+<script src="lib/leaflet/leaflet.js"></script>
+<script src="data/commute.js"></script>
+<script>
+const D = window.COMMUTE;
+const nf = new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 });
+function fmt(v) { return nf.format(Math.round(v)); }
+const T = {
+  en: {
+    title: 'Technician commuting costs outside the main cities',
+    subtitle: 'Travel and fuel charges paid to FleetOo technicians for installations outside Riyadh, Jeddah, Makkah, Dammam and Al-Khobar · from operational receipts, ' + D.period,
+    showZero: 'Show places with no commuting charge', showLines: 'Show routes from nearest main city', lang: 'العربية',
+    s_cost: 'Commuting cost paid', s_trips: 'Trips with a commuting charge', s_places: 'Places outside the main cities', s_units: 'Units installed there', s_per: 'Commuting cost per unit',
+    listTitle: 'Places, by commuting cost', hint: 'Zoom in to see amounts on the map, or click a place.', lg_cost: 'Commuting cost paid (size = amount)', lg_zero: 'Installed there, no commuting charge on the receipt', lg_main: 'Main city (no commuting charge counted)', lg_line: 'Approximate route from the nearest main city',
+    all: 'All periods', y: (y) => 'Year ' + y,
+    visits: 'visits', visit: 'visit', newb: 'Latest receipt · 17 Nov', units: 'units', none: 'No charge', sar: (v) => 'SAR ' + fmt(v),
+    p_cost: 'Commuting cost', p_trips: 'Visits (with a charge)', p_units: 'Units installed', p_per: 'Per unit', p_from: 'Nearest main city',
+    p_date: 'Date', p_client: 'Client', p_u: 'Units', p_fee: 'Charge', fuel: 'fuel', travel: 'travel', km: 'km by road (est.)',
+    n_split: 'This receipt line covers Makkah and Jazan; the travel fee is placed in Jazan and the units are not split.',
+    n_namas: 'A separate SAR 200 line under Al-Namas on the 17 Nov receipt, read as travel.',
+    n_arar: 'The SAR 150 line "maintenance and travel fees" is read as SAR 50 maintenance + SAR 100 travel.',
+    method: 'How this map was built',
+    notes: [
+      'Source: 36 technician receipt vouchers (سندات استلام مبلغ), ' + D.period + ', including the 4, 11 and 17 Nov 2026 sheets.',
+      'Only commuting costs are shown: amounts the receipts label as travel fees (رسوم سفر), travel petty cash (نثرية سفر) or fuel (بنزين). Installation fees are not included.',
+      'Places count as outside the main cities when the installation city is not Riyadh, Jeddah, Makkah, Dammam or Al-Khobar. Al-Kharj, Ras Tanura, Safwa and Al-Ahsa are therefore included.',
+      'Fuel charged inside the main cities (SAR ' + fmt(D.in_city_fuel_total) + ' in total) is left out.',
+      'A few receipts price out-of-town units above the usual SAR 50 (for example SAR 100 in Jazan and Rabigh on 4 Nov) without saying why. Those amounts are not counted as commuting cost.',
+      'Places are plotted at the city named on the receipt. Distances are straight-line from the nearest main city × 1.2 as a rough road estimate; dashed routes are illustrative.',
+      'A "visit" is one receipt\'s lines for one city.',
+    ],
+    downloads: 'Data: <a href="data/commute-places.csv">places (CSV)</a> · <a href="data/commute-visits.csv">visits (CSV)</a> · Map data © OpenStreetMap contributors.',
+  },
+  ar: {
+    title: 'تكاليف تنقّل الفنيين خارج المدن الرئيسية',
+    subtitle: 'رسوم السفر والبنزين المدفوعة لفنيي فليتو مقابل التركيبات خارج الرياض وجدة ومكة المكرمة والدمام والخبر · من السندات التشغيلية، من مايو 2025 حتى 17 نوفمبر 2026 · آخر سند مشمول: 17 نوفمبر 2026 (2,030 ريال)',
+    showZero: 'إظهار المواقع بدون رسوم تنقّل', showLines: 'إظهار المسار من أقرب مدينة رئيسية', lang: 'English',
+    s_cost: 'تكلفة التنقّل المدفوعة', s_trips: 'رحلات عليها رسوم تنقّل', s_places: 'مواقع خارج المدن الرئيسية', s_units: 'أجهزة رُكّبت فيها', s_per: 'تكلفة التنقّل لكل جهاز',
+    listTitle: 'المواقع حسب تكلفة التنقّل', hint: 'كبّر الخريطة لرؤية المبالغ عليها، أو اضغط على موقع.', lg_cost: 'تكلفة التنقّل المدفوعة (الحجم = المبلغ)', lg_zero: 'رُكّبت فيها أجهزة دون رسوم تنقّل في السند', lg_main: 'مدينة رئيسية (لا تُحتسب فيها رسوم تنقّل)', lg_line: 'مسار تقريبي من أقرب مدينة رئيسية',
+    all: 'كل الفترات', y: (y) => 'عام ' + y,
+    visits: 'زيارة', visit: 'زيارة', newb: 'آخر سند · 17 نوفمبر', units: 'جهاز', none: 'بدون رسوم', sar: (v) => fmt(v) + ' ريال',
+    p_cost: 'تكلفة التنقّل', p_trips: 'الزيارات (بها رسوم)', p_units: 'الأجهزة المركّبة', p_per: 'لكل جهاز', p_from: 'أقرب مدينة رئيسية',
+    p_date: 'التاريخ', p_client: 'العميل', p_u: 'الأجهزة', p_fee: 'الرسوم', fuel: 'بنزين', travel: 'سفر', km: 'كم بالطريق (تقديري)',
+    n_split: 'هذا البند في السند يشمل مكة وجيزان؛ وُضعت رسوم السفر على جازان ولم تُقسّم الأجهزة.',
+    n_namas: 'بند منفصل بقيمة 200 ريال تحت النماص في سند 17 نوفمبر، اعتُبر رسوم سفر.',
+    n_arar: 'بند 150 ريال "صيانة ورسوم سفر" اعتُبر 50 ريال صيانة و100 ريال سفر.',
+    method: 'طريقة إعداد الخريطة',
+    notes: [
+      'المصدر: 36 سند استلام مبلغ للفنيين من مايو 2025 حتى 17 نوفمبر 2026، بما فيها كشوف 4 و11 و17 نوفمبر 2026.',
+      'تعرض الخريطة تكاليف التنقّل فقط: المبالغ المذكورة في السندات كرسوم سفر أو نثرية سفر أو بنزين. أجور التركيب غير مشمولة.',
+      'يُعدّ الموقع خارج المدن الرئيسية إذا لم تكن مدينة التركيب الرياض أو جدة أو مكة المكرمة أو الدمام أو الخبر، ولذلك شُملت الخرج ورأس تنورة وصفوى والأحساء.',
+      'استُبعدت رسوم البنزين داخل المدن الرئيسية (' + fmt(D.in_city_fuel_total) + ' ريال إجمالاً).',
+      'بعض السندات تسعّر أجهزة خارج المدن بأعلى من 50 ريال المعتادة (مثل 100 ريال في جازان ورابغ في 4 نوفمبر) دون ذكر السبب، ولم تُحتسب هذه المبالغ كتكلفة تنقّل.',
+      'وُضعت المواقع على المدينة المذكورة في السند. المسافات خط مستقيم من أقرب مدينة رئيسية × 1.2 كتقدير تقريبي للطريق، والمسارات المتقطعة توضيحية.',
+      '"الزيارة" هي بنود سند واحد لمدينة واحدة.',
+    ],
+    downloads: 'البيانات: <a href="data/commute-places.csv">المواقع (CSV)</a> · <a href="data/commute-visits.csv">الزيارات (CSV)</a> · بيانات الخريطة © مساهمو OpenStreetMap.',
+  },
+};
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+
+const DEF = document.documentElement.dataset.default || 'en';
+const fromHash = () => (location.hash === '#ar' ? 'ar' : location.hash === '#en' ? 'en' : DEF);
+let lang = fromHash();
+const PL = Object.fromEntries(D.places.map((p) => [p.city, p]));
+const MAIN = Object.fromEntries(D.main.map((m) => [m.city, m]));
+const LATEST = D.visits.reduce((a, v) => (v.date > a ? v.date : a), '');
+const years = [...new Set(D.visits.map((v) => v.date.slice(0, 4)))].sort();
+
+// ---- map ----
+const map = L.map('map', { zoomSnap: 0.25, scrollWheelZoom: true }).setView([24.2, 44.5], 5.25);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  maxZoom: 12, minZoom: 4, attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+}).addTo(map);
+const layerLines = L.layerGroup().addTo(map);
+const layerPlaces = L.layerGroup().addTo(map);
+const layerMain = L.layerGroup().addTo(map);
+const markers = {};
+
+function filtered() {
+  const per = document.getElementById('period').value;
+  const vis = D.visits.filter((v) => per === 'all' || v.date.startsWith(per));
+  const agg = {};
+  vis.forEach((v) => {
+    const a = agg[v.city] || (agg[v.city] = { ...PL[v.city], units: 0, fee: 0, visits: 0, charged: 0, list: [] });
+    a.units += v.units; a.fee += v.fee; a.visits += 1; a.charged += v.fee ? 1 : 0; a.list.push(v);
+  });
+  return Object.values(agg).sort((a, b) => b.fee - a.fee || b.units - a.units);
+}
+
+function popupHtml(p) {
+  const t = T[lang];
+  const name = lang === 'ar' ? p.city_ar : p.city, reg = lang === 'ar' ? p.region_ar : p.region + ' region';
+  const near = lang === 'ar' ? p.nearest_ar : p.nearest;
+  const notes = [...new Set(p.list.map((v) => v.note).filter(Boolean))].map((n) => `<div class="note">${esc(t['n_' + n] || n)}</div>`).join('');
+  const rows = p.list.map((v) => `<tr><td><bdi dir="ltr">${esc(v.date)}</bdi></td><td>${esc(v.clients.join('، '))}</td><td class="num">${fmt(v.units)}</td><td class="num">${v.fee ? esc(t.sar(v.fee)) + ' <span style="color:#888">(' + v.type.split('+').map((x) => t[x] || x).join('+') + ')</span>' : '<span style="color:#999">' + t.none + '</span>'}</td></tr>`).join('');
+  return `<div class="pp" dir="${lang === 'ar' ? 'rtl' : 'ltr'}">
+    <h3>${esc(name)}</h3><div class="r">${esc(reg)}</div>
+    <div class="kv">
+      <span>${t.p_cost}</span><b>${esc(t.sar(p.fee))}</b>
+      <span>${t.p_trips}</span><b>${fmt(p.visits)} (${fmt(p.charged)})</b>
+      <span>${t.p_units}</span><b>${fmt(p.units)}</b>
+      <span>${t.p_per}</span><b>${p.units ? esc(t.sar(p.fee / p.units)) : '—'}</b>
+      <span>${t.p_from}</span><b>${esc(near)} · ~${fmt(p.km)} ${t.km}</b>
+    </div>
+    <div class="vis"><table><thead><tr><th>${t.p_date}</th><th>${t.p_client}</th><th class="num">${t.p_u}</th><th class="num">${t.p_fee}</th></tr></thead><tbody>${rows}</tbody></table></div>
+    ${notes}
+  </div>`;
+}
+
+function draw() {
+  const t = T[lang];
+  const showZero = document.getElementById('showZero').checked;
+  const showLines = document.getElementById('showLines').checked;
+  const places = filtered().filter((p) => showZero || p.fee > 0);
+  layerLines.clearLayers(); layerPlaces.clearLayers(); layerMain.clearLayers();
+  Object.keys(markers).forEach((k) => delete markers[k]);
+  const maxFee = Math.max(1, ...places.map((p) => p.fee));
+  const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim() || '#c2410c';
+
+  D.main.forEach((m) => {
+    L.marker([m.lat, m.lon], {
+      icon: L.divIcon({ className: '', html: '<div style="width:11px;height:11px;background:#1f3b63;border:2px solid #fff;border-radius:2px;box-shadow:0 0 2px rgba(0,0,0,.4)"></div>', iconSize: [11, 11], iconAnchor: [6, 6] }),
+      keyboard: false,
+    }).bindTooltip(lang === 'ar' ? m.city_ar : m.city, { permanent: true, direction: m.city === 'Makkah' || m.city === 'Khobar' ? 'bottom' : 'right', offset: [6, 0], className: 'city-label' + (m.city === 'Makkah' || m.city === 'Khobar' ? ' minor' : '') }).addTo(layerMain);
+  });
+
+  places.forEach((p) => {
+    if (showLines && p.fee > 0) {
+      const m = MAIN[p.nearest];
+      L.polyline([[m.lat, m.lon], [p.lat, p.lon]], { color: accent, weight: 1.5, opacity: 0.55, dashArray: '4 6', interactive: false }).addTo(layerLines);
+    }
+    const r = p.fee > 0 ? 7 + 22 * Math.sqrt(p.fee / maxFee) : 5;
+    const mk = L.circleMarker([p.lat, p.lon], p.fee > 0
+      ? { radius: r, color: '#fff', weight: 1.5, fillColor: accent, fillOpacity: 0.78 }
+      : { radius: r, color: '#8b877e', weight: 2, fillColor: '#fff', fillOpacity: 0.6 })
+      .bindPopup(() => popupHtml(p), { maxWidth: 380 })
+      .addTo(layerPlaces);
+    const label = (lang === 'ar' ? p.city_ar : p.city) + (p.fee > 0 ? ' · ' + t.sar(p.fee) : '');
+    mk._lbl = { label, r, fee: p.fee };
+    markers[p.city] = mk;
+  });
+
+  labels();
+  // stats
+  const fee = places.reduce((a, p) => a + p.fee, 0), units = places.reduce((a, p) => a + p.units, 0);
+  const trips = places.reduce((a, p) => a + p.charged, 0);
+  const set = (id, v) => { document.getElementById(id).textContent = v; };
+  set('s-cost', t.sar(fee)); set('s-trips', fmt(trips)); set('s-places', fmt(places.length)); set('s-units', fmt(units));
+  set('s-per', units ? t.sar(fee / units) : '—');
+
+  // list
+  const list = document.getElementById('list'); list.replaceChildren();
+  places.forEach((p) => {
+    const row = document.createElement('div'); row.className = 'row' + (p.fee ? '' : ' zero'); row.tabIndex = 0;
+    const isNew = p.list.some((v) => v.date === LATEST);
+    row.innerHTML = `<span class="n">${esc(lang === 'ar' ? p.city_ar : p.city)}${isNew ? ' <em class="new">' + t.newb + '</em>' : ''}</span><span class="f">${p.fee ? esc(t.sar(p.fee)) : t.none}</span>
+      <span class="m">${esc(lang === 'ar' ? p.region_ar : p.region)} · ${fmt(p.units)} ${t.units} · ${fmt(p.visits)} ${p.visits === 1 ? t.visit : t.visits}</span>
+      <span class="bar"><i style="width:${(100 * p.fee / maxFee).toFixed(1)}%"></i></span>`;
+    const go = () => { map.flyTo([p.lat, p.lon], Math.max(map.getZoom(), 7), { duration: 0.6 }); setTimeout(() => markers[p.city] && markers[p.city].openPopup(), 650); };
+    row.addEventListener('click', go); row.addEventListener('keydown', (e) => { if (e.key === 'Enter') go(); });
+    list.appendChild(row);
+  });
+}
+
+const LABEL_ZOOM = 6.75;
+function labels() {
+  const big = map.getZoom() >= LABEL_ZOOM;
+  document.getElementById('map').classList.toggle('zoomed', big);
+  Object.values(markers).forEach((mk) => {
+    const { label, r, fee } = mk._lbl;
+    mk.unbindTooltip();
+    mk.bindTooltip(label, { permanent: big && fee > 0, direction: 'top', offset: [0, -r], className: fee > 0 ? 'fee-label' : 'city-label' });
+  });
+}
+let lastBig = null;
+map.on('zoomend', () => { const big = map.getZoom() >= LABEL_ZOOM; if (big !== lastBig) { lastBig = big; labels(); } });
+
+function applyLang() {
+  const t = T[lang];
+  document.documentElement.lang = lang; document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+  document.title = t.title + ' – FleetOo';
+  document.querySelectorAll('[data-t]').forEach((el) => {
+    const v = t[el.dataset.t];
+    if (el.dataset.t === 'downloads') el.innerHTML = v; else el.textContent = v;
+  });
+  document.getElementById('lang').textContent = t.lang;
+  const sel = document.getElementById('period'); const cur = sel.value || 'all';
+  sel.replaceChildren(new Option(t.all, 'all'), ...years.map((y) => new Option(t.y(y), y))); sel.value = cur;
+  const ul = document.getElementById('notes'); ul.replaceChildren(...t.notes.map((n) => { const li = document.createElement('li'); li.textContent = n; return li; }));
+  draw();
+}
+
+document.getElementById('lang').addEventListener('click', () => { lang = lang === 'en' ? 'ar' : 'en'; history.replaceState(null, '', lang === DEF ? location.pathname : '#' + lang); applyLang(); });
+['period', 'showZero', 'showLines'].forEach((id) => document.getElementById(id).addEventListener('change', draw));
+window.addEventListener('hashchange', () => { const l = fromHash(); if (l !== lang) { lang = l; applyLang(); } });
+applyLang();
+map.fitBounds(L.latLngBounds(D.places.map((p) => [p.lat, p.lon]).concat(D.main.map((m) => [m.lat, m.lon]))).pad(0.08));
+</script>
+</body>
+</html>

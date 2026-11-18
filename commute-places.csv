@@ -1,0 +1,20 @@
+﻿city,city_ar,region,lat,lon,units,commute_fee_sar,visits,visits_with_charge,sar_per_unit,nearest_main_city,est_road_km
+Jazan,جازان,Jazan,16.89,42.55,49.0,700.0,5,3,14.3,Makkah,690
+Ras Tanura,رأس تنورة,Eastern,26.64,50.16,32.0,400.0,1,1,12.5,Dammam,29
+Yanbu,ينبع,Madinah,24.09,38.06,6.0,300.0,1,1,50.0,Jeddah,374
+Arar,عرعر,Northern Borders,30.98,41.04,2.0,300.0,2,2,150.0,Riyadh,1069
+Tabuk,تبوك,Tabuk,28.38,36.57,31.0,200.0,4,2,6.5,Jeddah,972
+Al-Baha,الباحة,Al-Baha,20.01,41.47,8.0,200.0,1,1,25.0,Makkah,273
+Bisha,بيشة,Asir,19.99,42.6,2,200,1,1,100.0,Makkah,390
+Al-Namas,النماص,Asir,19.12,42.13,2,200,1,1,100.0,Makkah,415
+Al-Kharj,الخرج,Riyadh,24.15,47.31,5.0,180.0,3,3,36.0,Riyadh,107
+Ar Rass,الرس,Qassim,25.87,43.5,1.0,150.0,1,1,150.0,Riyadh,414
+Buraidah,القصيم (بريدة),Qassim,26.33,43.97,56.0,100.0,8,2,1.8,Riyadh,391
+Al-Ahsa,الأحساء,Eastern,25.38,49.59,7,100,1,1,14.3,Khobar,141
+Hail,حائل,Hail,27.52,41.69,8.0,30.0,3,1,3.8,Riyadh,706
+Safwa,صفوى,Eastern,26.65,49.95,67.0,0,2,0,0.0,Dammam,34
+Jubail,الجبيل,Eastern,27.01,49.66,4.0,0,1,0,0.0,Dammam,93
+Yabrin,يبرين,Eastern,23.31,48.96,25.0,0,1,0,0.0,Riyadh,335
+Madinah,المدينة المنورة,Madinah,24.47,39.61,64.0,0,9,0,0.0,Jeddah,401
+Khamis Mushait,خميس مشيط,Asir,18.31,42.73,16.0,0,7,0,0.0,Makkah,546
+Rabigh,رابغ,Makkah,22.8,39.03,1,0,1,0,0.0,Jeddah,176
